@@ -1,0 +1,68 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title КиноБездна — C4: Контейнерная диаграмма (to-be)
+
+Person(user, "Пользователь", "Смотрит фильмы, управляет подписками")
+Person(partner, "Внешний партнёр", "Платёжные системы, CDN")
+
+System_Boundary(ca, "КиноБездна") {
+    Container(proxy, "API Gateway", "Nginx", "Единая точка входа, маршрутизация, аутентификация, фиче-флаги")
+
+    Container(auth, "Auth Service", "Go", "OAuth2/JWT аутентификация")
+    Container(userSvc, "User Service", "Go", "Профили пользователей, предпочтения")
+
+    Container(movies, "Movies Service", "Go", "Каталог фильмов, жанры, рейтинги")
+    Container(search, "Search Service", "ElasticSearch", "Поиск по каталогу")
+
+    Container(streaming, "Streaming Gateway", "Go", "Выдача токенов, интеграция с CDN")
+    ContainerDb(mediaStore, "Media Storage", "Object Storage / CDN", "Медиаконтент")
+
+    Container(billing, "Billing Service", "Go", "Заказы и счета")
+    Container(payments, "Payments Adapter", "Go", "Интеграция с платёжными системами")
+    Container(subs, "Subscriptions Service", "Go", "Управление планами и подписками")
+
+    Container(rec, "Recommendations Service", "Python", "ML-рекомендации, персонализация")
+
+    ContainerDb(dbCatalog, "Каталог (Postgres)", "Postgres", "Метаданные фильмов")
+    ContainerDb(dbUsers, "Пользователи (Postgres)", "Postgres", "Учётные записи, профили")
+    ContainerDb(dbBilling, "Биллинг (Postgres)", "Postgres", "Финансовые данные")
+    ContainerDb(redis, "Redis", "In-memory", "Кэш, rate limiting")
+
+    Container(kafka, "Kafka Cluster", "Kafka", "Обмен событиями между сервисами")
+    Container(events, "Events Service", "Go", "Обработка событий, саги, оркестрация")
+
+    Container_Ext(monolith, "Монолит (Legacy)", "Go", "Историческая система, частично выполняет доменные функции")
+}
+
+' Взаимодействия
+Rel(user, proxy, "HTTPS запросы (REST/gRPC)")
+Rel(partner, proxy, "Webhook-и, платежные нотификации")
+
+Rel(proxy, auth, "Аутентификация")
+Rel(proxy, userSvc, "REST API")
+Rel(proxy, movies, "REST/gRPC")
+Rel(proxy, search, "REST API")
+Rel(proxy, streaming, "REST API")
+Rel(proxy, billing, "REST API")
+Rel(proxy, subs, "REST API")
+Rel(proxy, monolith, "Маршрутизация % (Strangler Fig)")
+
+Rel(movies, dbCatalog, "чтение/запись")
+Rel(search, dbCatalog, "индексация")
+Rel(userSvc, dbUsers, "чтение/запись")
+Rel(billing, dbBilling, "чтение/запись")
+Rel(subs, dbBilling, "чтение/запись")
+Rel(rec, redis, "кэш рекомендаций")
+
+Rel_U(movies, kafka, "События фильмов")
+Rel_U(userSvc, kafka, "События пользователей")
+Rel_U(billing, kafka, "События платежей")
+Rel(kafka, events, "Поток событий")
+Rel(events, billing, "Оркестрация (саги)")
+Rel(events, rec, "События для ML")
+
+Rel(billing, payments, "Интеграция PSP")
+Rel(streaming, mediaStore, "Подписанные ссылки для доступа")
+
+@enduml
