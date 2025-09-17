@@ -26,16 +26,21 @@ func main() {
 	gradualMigration := getEnv("GRADUAL_MIGRATION", "false") == "true"
 	moviesPercent := getEnvInt("MOVIES_MIGRATION_PERCENT", 0)
 
-	// movies route
-	e.Any("/api/movies/*", func(c echo.Context) error {
+	moviesHandler := func(c echo.Context) error {
 		target := monolithURL
+
 		if gradualMigration {
-			if rand.Intn(100) < moviesPercent {
+			randInt := rand.Intn(100)
+			if randInt <= moviesPercent {
 				target = moviesURL
 			}
 		}
+
 		return proxyRequest(c, target)
-	})
+	}
+
+	e.Any("/api/movies", moviesHandler)
+	e.Any("/api/movies/*", moviesHandler)
 
 	// events route
 	e.Any("/api/events/*", func(c echo.Context) error {
